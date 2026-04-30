@@ -146,6 +146,146 @@ const identitySignals = [
   },
 ];
 
+const gameRanks = [
+  { min: 360, label: "Aim legend" },
+  { min: 240, label: "Rýchle reflexy" },
+  { min: 120, label: "Warm-up hotový" },
+  { min: 0, label: "Ešte jeden run?" },
+];
+
+function GamingMiniGame() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(20);
+  const [score, setScore] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [bestScore, setBestScore] = useState(0);
+  const [target, setTarget] = useState({ x: 50, y: 50, size: 72 });
+  const [message, setMessage] = useState("Traf ciele skôr, než zmiznú.");
+
+  const placeTarget = () => {
+    setTarget({
+      x: 12 + Math.random() * 76,
+      y: 16 + Math.random() * 68,
+      size: 52 + Math.random() * 34,
+    });
+  };
+
+  const startGame = () => {
+    setScore(0);
+    setCombo(0);
+    setTimeLeft(20);
+    setMessage("Focus mode zapnutý.");
+    placeTarget();
+    setIsPlaying(true);
+  };
+
+  const hitTarget = () => {
+    if (!isPlaying) return;
+
+    const nextCombo = combo + 1;
+    const comboBonus = Math.min(nextCombo * 2, 18);
+    setScore((current) => current + 10 + comboBonus);
+    setCombo(nextCombo);
+    setMessage(nextCombo >= 5 ? "Combo beží, ruky sú zahriate." : "Nice hit.");
+    placeTarget();
+  };
+
+  const missTarget = () => {
+    if (!isPlaying) return;
+
+    setCombo(0);
+    setScore((current) => Math.max(0, current - 5));
+    setMessage("Ups, klik mimo. Combo reset.");
+  };
+
+  useEffect(() => {
+    if (!isPlaying) return undefined;
+
+    const timerId = window.setInterval(() => {
+      setTimeLeft((current) => {
+        if (current <= 1) {
+          setIsPlaying(false);
+          return 0;
+        }
+
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(timerId);
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if (isPlaying) return;
+
+    setBestScore((current) => Math.max(current, score));
+
+    if (timeLeft === 0) {
+      const rank = gameRanks.find((item) => score >= item.min);
+      setMessage(`Koniec kola: ${rank?.label ?? gameRanks.at(-1).label}.`);
+    }
+  }, [isPlaying, score, timeLeft]);
+
+  return (
+    <article className="mini-game" aria-labelledby="mini-game-title">
+      <div className="mini-game-copy">
+        <p className="card-kicker">Minihra</p>
+        <h3 id="mini-game-title">Reflex Rush</h3>
+        <p>
+          Krátky aim-check pre návštevníkov: 20 sekúnd, rýchle ciele a trochu
+          zdravého chaosu medzi scrollovaním.
+        </p>
+      </div>
+
+      <div className="game-hud" aria-label="Skóre minihry">
+        <span>
+          Skóre <strong>{score}</strong>
+        </span>
+        <span>
+          Čas <strong>{timeLeft}s</strong>
+        </span>
+        <span>
+          Combo <strong>x{combo}</strong>
+        </span>
+        <span>
+          Best <strong>{bestScore}</strong>
+        </span>
+      </div>
+
+      <button
+        className="game-arena"
+        type="button"
+        onClick={missTarget}
+        aria-label="Herné pole Reflex Rush"
+      >
+        <span className="arena-grid" aria-hidden="true" />
+        <span
+          className={`game-target${isPlaying ? " is-live" : ""}`}
+          style={{
+            "--target-x": `${target.x}%`,
+            "--target-y": `${target.y}%`,
+            "--target-size": `${target.size}px`,
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            hitTarget();
+          }}
+          role="presentation"
+        >
+          <span />
+        </span>
+      </button>
+
+      <div className="game-controls">
+        <button className="button primary" type="button" onClick={startGame}>
+          {isPlaying ? "Reštart kola" : "Spustiť hru"}
+        </button>
+        <p aria-live="polite">{message}</p>
+      </div>
+    </article>
+  );
+}
+
 function TechCanvas() {
   const canvasRef = useRef(null);
 
@@ -776,7 +916,7 @@ export default function App() {
         </section>
 
         <section className="section vibe-section" id="vibe-coder">
-          <SectionHeading eyebrow="Vibe coder" title="Rýchlo nachádzam smer a potom ho dotiahnem." />
+          <SectionHeading eyebrow="Vibe coder" title="Nápady premieňam na weby, ktoré majú štýl aj funkciu." />
           <div className="vibe-layout">
             <div className="vibe-copy">
               <p>
@@ -862,6 +1002,7 @@ export default function App() {
               </article>
             ))}
           </div>
+          <GamingMiniGame />
         </section>
 
         <section className="contact-section" id="kontakt" aria-labelledby="contact-title">
