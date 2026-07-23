@@ -1,19 +1,63 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import machiLogo from "./machi.png";
+
+const konamiSequence = [
+  "ArrowUp",
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowLeft",
+  "ArrowRight",
+  "b",
+  "a",
+];
+
+function useKonamiCode(onUnlock) {
+  useEffect(() => {
+    let index = 0;
+
+    const handleKey = (event) => {
+      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+
+      if (key === konamiSequence[index]) {
+        index += 1;
+
+        if (index === konamiSequence.length) {
+          index = 0;
+          onUnlock();
+        }
+      } else {
+        index = key === konamiSequence[0] ? 1 : 0;
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onUnlock]);
+}
+
+const memoryPads = [
+  { key: "violet", color: "124, 108, 255" },
+  { key: "blue", color: "91, 157, 255" },
+  { key: "cyan", color: "34, 211, 238" },
+  { key: "pink", color: "236, 114, 209" },
+];
 
 const navItems = [
   { label: "O mne", href: "#o-mne" },
-  { label: "Vibe coder", href: "#vibe-coder" },
+  { label: "Ako pracujem", href: "#proces" },
   { label: "Tvorba", href: "#tvorba" },
-  { label: "Výučba", href: "#vyucba" },
+  { label: "Mentoring", href: "#vyucba" },
   { label: "Mimo kódu", href: "#mimo-kodu" },
   { label: "Kontakt", href: "#kontakt" },
 ];
 
 const stats = [
-  ["Vibe coding", "nápad rýchlo premieňam na funkčný prototyp"],
+  ["Prototypy", "nápad rýchlo premieňam na funkčný prototyp"],
   ["Frontend", "rozhrania, ktoré sú čisté, rýchle a čitateľné"],
-  ["Výučba", "informatiku vysvetľujem ľudsky a cez prax"],
+  ["Mentoring", "o to, čo viem, sa delím ľudsky a cez prax"],
 ];
 
 const focusAreas = [
@@ -28,16 +72,16 @@ const focusAreas = [
     text: "S AI nástrojmi rýchlo skladám prvé verzie, testujem smer a potom dopracujem detaily, ktoré rozhodujú.",
   },
   {
-    type: "Vzdelávanie",
-    title: "Materiály a vysvetlenia",
-    text: "Pripravujem príklady, cvičenia a krátke návody, ktoré pomáhajú pochopiť informatiku bez zbytočného chaosu.",
+    type: "Mentoring",
+    title: "Podelím sa o to, čo viem",
+    text: "Rád ukážem príklady, kód a krátke návody, ktoré pomáhajú pochopiť informatiku bez zbytočného chaosu.",
   },
 ];
 
 const lessons = [
-  ["01", "Programovanie od základov", "Premenné, podmienky, cykly a funkcie vysvetľujem na príkladoch, ktoré dávajú zmysel."],
+  ["01", "Programovanie od základov", "Premenné, podmienky, cykly a funkcie ukazujem na príkladoch, ktoré dávajú zmysel."],
   ["02", "Web cez prax", "HTML, CSS, JavaScript a React beriem cez malé zadania, úpravy a reálne obrazovky."],
-  ["03", "Myslenie vývojára", "Učím rozkladať problém, testovať nápady a písať kód, ku ktorému sa dá vrátiť."],
+  ["03", "Myslenie vývojára", "Rád poradím, ako rozložiť problém, otestovať nápad a písať kód, ku ktorému sa dá vrátiť."],
 ];
 
 const technologies = [
@@ -48,7 +92,7 @@ const technologies = [
   "Python",
   "Git",
   "Algoritmy",
-  "Výučba",
+  "Mentoring",
   "AI nástroje",
   "Prompting",
 ];
@@ -98,51 +142,6 @@ const vibeFlow = [
     label: "Polish",
     title: "Ladím detail",
     text: "Prejdem layout, kontrast, texty, mobil a interakcie, aby bol výsledok použiteľný.",
-  },
-];
-
-const identitySignals = [
-  {
-    label: "VIBE",
-    detail: "nápad + atmosféra",
-    color: "91, 231, 196",
-    type: "spark",
-  },
-  {
-    label: "WEB",
-    detail: "React a čistý frontend",
-    color: "143, 199, 255",
-    type: "code",
-  },
-  {
-    label: "AI",
-    detail: "prompting a prototypy",
-    color: "255, 184, 107",
-    type: "network",
-  },
-  {
-    label: "UČÍM",
-    detail: "informatika cez prax",
-    color: "91, 231, 196",
-    type: "book",
-  },
-  {
-    label: "HUDBA",
-    detail: "spev, rytmus, prejav",
-    color: "255, 111, 97",
-    type: "wave",
-  },
-  {
-    label: "GAMING",
-    detail: "reakcie a spolupráca",
-    color: "143, 199, 255",
-    type: "target",
-  },
-  {
-    label: "ZÁHRADKA",
-    detail: "pokoj mimo obrazovky",
-    color: "255, 184, 107",
-    type: "leaf",
   },
 ];
 
@@ -286,37 +285,173 @@ function GamingMiniGame() {
   );
 }
 
-function TechCanvas() {
+function MemoryGame() {
+  const [sequence, setSequence] = useState([]);
+  const [userStep, setUserStep] = useState(0);
+  const [activePad, setActivePad] = useState(null);
+  const [phase, setPhase] = useState("idle");
+  const [bestLevel, setBestLevel] = useState(0);
+  const [message, setMessage] = useState("Zapamätaj si poradie a klikaj podľa neho.");
+  const timeouts = useRef([]);
+
+  const clearTimers = () => {
+    timeouts.current.forEach((id) => window.clearTimeout(id));
+    timeouts.current = [];
+  };
+
+  useEffect(() => clearTimers, []);
+
+  const playSequence = (seq) => {
+    setPhase("showing");
+    clearTimers();
+
+    seq.forEach((pad, index) => {
+      timeouts.current.push(window.setTimeout(() => setActivePad(pad), index * 620 + 300));
+      timeouts.current.push(window.setTimeout(() => setActivePad(null), index * 620 + 640));
+    });
+
+    timeouts.current.push(
+      window.setTimeout(() => {
+        setPhase("input");
+        setUserStep(0);
+      }, seq.length * 620 + 380),
+    );
+  };
+
+  const nextRound = (prev) => {
+    const next = [...prev, Math.floor(Math.random() * memoryPads.length)];
+    setSequence(next);
+    setMessage(`Úroveň ${next.length}. Sleduj sekvenciu...`);
+    playSequence(next);
+  };
+
+  const startGame = () => {
+    clearTimers();
+    setSequence([]);
+    setUserStep(0);
+    nextRound([]);
+  };
+
+  const handlePad = (padIndex) => {
+    if (phase !== "input") return;
+
+    setActivePad(padIndex);
+    window.setTimeout(() => setActivePad(null), 200);
+
+    if (sequence[userStep] !== padIndex) {
+      setPhase("over");
+      setMessage(`Sekvencia praskla na úrovni ${sequence.length}. Skús to znova.`);
+      return;
+    }
+
+    const nextStep = userStep + 1;
+
+    if (nextStep === sequence.length) {
+      setBestLevel((best) => Math.max(best, sequence.length));
+      setMessage(`Úroveň ${sequence.length} zvládnutá. Ideme vyššie!`);
+      setPhase("showing");
+      timeouts.current.push(window.setTimeout(() => nextRound(sequence), 760));
+    } else {
+      setUserStep(nextStep);
+    }
+  };
+
+  const isBusy = phase === "showing";
+
+  return (
+    <article className="mini-game memory-game" aria-labelledby="memory-game-title">
+      <div className="mini-game-copy">
+        <p className="card-kicker">Minihra 02</p>
+        <h3 id="memory-game-title">Sekvencia</h3>
+        <p>
+          Pamäťová výzva pre vývojára: zapamätaj si poradie farieb a zopakuj ho.
+          Každé kolo pridá jeden krok navyše.
+        </p>
+      </div>
+
+      <div className="game-hud" aria-label="Skóre pamäťovej hry">
+        <span>
+          Úroveň <strong>{sequence.length}</strong>
+        </span>
+        <span>
+          Best <strong>{bestLevel}</strong>
+        </span>
+      </div>
+
+      <div className="memory-board" aria-label="Pole pamäťovej hry">
+        {memoryPads.map((pad, index) => (
+          <button
+            key={pad.key}
+            type="button"
+            className={`memory-pad${activePad === index ? " is-active" : ""}`}
+            style={{ "--pad-color": pad.color }}
+            onClick={() => handlePad(index)}
+            disabled={phase !== "input"}
+            aria-label={`Farebné pole ${index + 1}`}
+          />
+        ))}
+      </div>
+
+      <div className="game-controls">
+        <button className="button primary" type="button" onClick={startGame} disabled={isBusy}>
+          {phase === "idle" ? "Spustiť hru" : "Nové kolo"}
+        </button>
+        <p aria-live="polite">{message}</p>
+      </div>
+    </article>
+  );
+}
+
+function ScrollBackground() {
   const canvasRef = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d");
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const points = [];
-    const streams = [];
+
+    const palette = [
+      [124, 108, 255],
+      [91, 157, 255],
+      [34, 211, 238],
+    ];
+
+    const signals = [
+      { label: "Web", color: [124, 108, 255] },
+      { label: "Frontend", color: [91, 157, 255] },
+      { label: "AI + prototypy", color: [34, 211, 238] },
+      { label: "Stack", color: [124, 108, 255] },
+      { label: "Mentoring", color: [91, 157, 255] },
+      { label: "Hudba a spev", color: [34, 211, 238] },
+      { label: "Gaming", color: [124, 108, 255] },
+      { label: "Záhradka", color: [91, 157, 255] },
+    ];
+
+    const particles = [];
+    const orbs = [];
     let width = 0;
     let height = 0;
     let animationId = 0;
+    let time = 0;
     let scrollProgress = 0;
     let targetScrollProgress = 0;
     let scrollVelocity = 0;
     let lastScrollY = window.scrollY;
-    let time = 0;
 
     const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
-    const ease = (value) => {
-      const progress = clamp(value);
-      return progress * progress * (3 - 2 * progress);
-    };
-    const lerp = (from, to, amount) => from + (to - from) * amount;
 
     const updateScroll = () => {
       const maxScroll = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
-      const currentScrollY = window.scrollY;
-      targetScrollProgress = currentScrollY / maxScroll;
-      scrollVelocity = Math.max(-1, Math.min(1, (currentScrollY - lastScrollY) / 70));
-      lastScrollY = currentScrollY;
+      const currentY = window.scrollY;
+      targetScrollProgress = clamp(currentY / maxScroll);
+      scrollVelocity = clamp((currentY - lastScrollY) / 60, -1, 1);
+      lastScrollY = currentY;
+
+      if (reduceMotion.matches) {
+        scrollProgress = targetScrollProgress;
+        scrollVelocity = 0;
+        drawFrame();
+      }
     };
 
     const resize = () => {
@@ -329,463 +464,219 @@ function TechCanvas() {
       canvas.style.height = `${height}px`;
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 
-      points.length = 0;
-      streams.length = 0;
-      const count = Math.max(54, Math.floor((width * height) / 17000));
-      const streamCount = Math.max(8, Math.floor(width / 150));
+      particles.length = 0;
+      const count = Math.max(40, Math.floor((width * height) / 26000));
 
       for (let index = 0; index < count; index += 1) {
-        points.push({
+        particles.push({
           x: Math.random() * width,
           y: Math.random() * height,
-          baseX: Math.random() * width,
-          baseY: Math.random() * height,
-          vx: (Math.random() - 0.5) * 0.42,
-          vy: (Math.random() - 0.5) * 0.42,
-          r: Math.random() * 1.6 + 0.8,
+          vx: (Math.random() - 0.5) * 0.26,
+          vy: (Math.random() - 0.5) * 0.26,
+          r: Math.random() * 1.4 + 0.7,
+          depth: 0.4 + Math.random() * 0.9,
           phase: Math.random() * Math.PI * 2,
+          color: palette[index % palette.length],
         });
       }
 
-      for (let index = 0; index < streamCount; index += 1) {
-        streams.push({
-          x: (index / Math.max(streamCount - 1, 1)) * width + (Math.random() - 0.5) * 80,
+      orbs.length = 0;
+
+      for (let index = 0; index < 4; index += 1) {
+        orbs.push({
+          x: (0.18 + Math.random() * 0.64) * width,
           y: Math.random() * height,
-          length: 120 + Math.random() * 260,
-          speed: 1.2 + Math.random() * 2.4,
-          alpha: 0.18 + Math.random() * 0.22,
+          radius: 220 + Math.random() * 260,
+          depth: 0.18 + index * 0.14,
+          drift: Math.random() * Math.PI * 2,
+          color: palette[index % palette.length],
         });
       }
 
       updateScroll();
     };
 
-    const drawGrid = () => {
-      const gridSize = 44 + scrollProgress * 34;
-      const offset = (time * 18 + scrollProgress * 260) % gridSize;
-      const alpha = 0.06 + Math.abs(scrollVelocity) * 0.08;
+    const drawConstellation = () => {
+      const total = signals.length;
+      const centerX = width * 0.5 + scrollVelocity * 24;
+      const centerY = height * 0.5;
+      const radiusX = Math.min(width * 0.34, 440);
+      const radiusY = Math.min(height * 0.32, 300);
+      const rotation = time * 0.05;
+      const revealed = clamp(scrollProgress) * total;
 
-      context.save();
-      context.translate(width / 2, height / 2);
-      context.rotate((scrollProgress - 0.5) * 0.18);
-      context.translate(-width / 2, -height / 2);
-      context.strokeStyle = `rgba(91, 231, 196, ${alpha})`;
-      context.lineWidth = 1;
-
-      for (let x = -gridSize; x < width + gridSize; x += gridSize) {
-        context.beginPath();
-        context.moveTo(x + offset, -height * 0.2);
-        context.lineTo(x + offset, height * 1.2);
-        context.stroke();
-      }
-
-      context.strokeStyle = `rgba(255, 184, 107, ${alpha * 0.75})`;
-
-      for (let y = -gridSize; y < height + gridSize; y += gridSize) {
-        context.beginPath();
-        context.moveTo(-width * 0.2, y - offset);
-        context.lineTo(width * 1.2, y - offset);
-        context.stroke();
-      }
-
-      context.restore();
-    };
-
-    const drawRings = () => {
-      const centerX = width * (0.74 - scrollProgress * 0.18);
-      const centerY = height * (0.28 + scrollProgress * 0.34);
-      const pulse = Math.sin(time * 2.4) * 16 + Math.abs(scrollVelocity) * 42;
-
-      for (let index = 0; index < 4; index += 1) {
-        const radius = 80 + index * 76 + scrollProgress * 150 + pulse;
-        context.beginPath();
-        context.arc(centerX, centerY, radius, 0, Math.PI * 2);
-        context.strokeStyle = `rgba(${index % 2 === 0 ? "91, 231, 196" : "255, 111, 97"}, ${0.16 - index * 0.026})`;
-        context.lineWidth = 1.2;
-        context.stroke();
-      }
-    };
-
-    const drawRoundedRect = (x, y, rectWidth, rectHeight, radius) => {
-      const safeRadius = Math.min(radius, rectWidth / 2, rectHeight / 2);
-
-      context.beginPath();
-      context.moveTo(x + safeRadius, y);
-      context.lineTo(x + rectWidth - safeRadius, y);
-      context.quadraticCurveTo(x + rectWidth, y, x + rectWidth, y + safeRadius);
-      context.lineTo(x + rectWidth, y + rectHeight - safeRadius);
-      context.quadraticCurveTo(
-        x + rectWidth,
-        y + rectHeight,
-        x + rectWidth - safeRadius,
-        y + rectHeight,
-      );
-      context.lineTo(x + safeRadius, y + rectHeight);
-      context.quadraticCurveTo(x, y + rectHeight, x, y + rectHeight - safeRadius);
-      context.lineTo(x, y + safeRadius);
-      context.quadraticCurveTo(x, y, x + safeRadius, y);
-      context.closePath();
-    };
-
-    const drawSignalIcon = (type, x, y, size, color, alpha) => {
-      const half = size / 2;
-
-      context.save();
-      context.strokeStyle = `rgba(${color}, ${alpha})`;
-      context.fillStyle = `rgba(${color}, ${alpha})`;
-      context.lineWidth = Math.max(1.2, size / 18);
-      context.lineCap = "round";
-      context.lineJoin = "round";
-
-      if (type === "code") {
-        context.font = `900 ${Math.max(15, size * 0.48)}px Inter, ui-sans-serif, system-ui`;
-        context.textAlign = "center";
-        context.textBaseline = "middle";
-        context.fillText("</>", x, y + 1);
-      }
-
-      if (type === "network") {
-        const nodes = [
-          [x - half * 0.46, y - half * 0.1],
-          [x, y - half * 0.44],
-          [x + half * 0.48, y + half * 0.02],
-          [x - half * 0.08, y + half * 0.42],
-        ];
-
-        context.beginPath();
-        context.moveTo(nodes[0][0], nodes[0][1]);
-        context.lineTo(nodes[1][0], nodes[1][1]);
-        context.lineTo(nodes[2][0], nodes[2][1]);
-        context.lineTo(nodes[3][0], nodes[3][1]);
-        context.lineTo(nodes[0][0], nodes[0][1]);
-        context.stroke();
-
-        for (const [nodeX, nodeY] of nodes) {
-          context.beginPath();
-          context.arc(nodeX, nodeY, size * 0.095, 0, Math.PI * 2);
-          context.fill();
-        }
-      }
-
-      if (type === "book") {
-        context.beginPath();
-        context.moveTo(x, y - half * 0.42);
-        context.lineTo(x, y + half * 0.42);
-        context.moveTo(x, y - half * 0.34);
-        context.quadraticCurveTo(x - half * 0.5, y - half * 0.5, x - half * 0.72, y - half * 0.16);
-        context.lineTo(x - half * 0.72, y + half * 0.42);
-        context.quadraticCurveTo(x - half * 0.4, y + half * 0.22, x, y + half * 0.42);
-        context.moveTo(x, y - half * 0.34);
-        context.quadraticCurveTo(x + half * 0.5, y - half * 0.5, x + half * 0.72, y - half * 0.16);
-        context.lineTo(x + half * 0.72, y + half * 0.42);
-        context.quadraticCurveTo(x + half * 0.4, y + half * 0.22, x, y + half * 0.42);
-        context.stroke();
-      }
-
-      if (type === "wave") {
-        context.beginPath();
-
-        for (let step = 0; step <= 36; step += 1) {
-          const ratio = step / 36;
-          const waveX = x - half * 0.82 + ratio * size * 0.82 * 2;
-          const waveY = y + Math.sin(ratio * Math.PI * 4) * size * 0.18;
-
-          if (step === 0) context.moveTo(waveX, waveY);
-          else context.lineTo(waveX, waveY);
-        }
-
-        context.stroke();
-      }
-
-      if (type === "target") {
-        context.beginPath();
-        context.arc(x, y, half * 0.5, 0, Math.PI * 2);
-        context.moveTo(x - half * 0.78, y);
-        context.lineTo(x - half * 0.24, y);
-        context.moveTo(x + half * 0.24, y);
-        context.lineTo(x + half * 0.78, y);
-        context.moveTo(x, y - half * 0.78);
-        context.lineTo(x, y - half * 0.24);
-        context.moveTo(x, y + half * 0.24);
-        context.lineTo(x, y + half * 0.78);
-        context.stroke();
-      }
-
-      if (type === "leaf") {
-        context.beginPath();
-        context.moveTo(x - half * 0.58, y + half * 0.34);
-        context.bezierCurveTo(
-          x - half * 0.2,
-          y - half * 0.62,
-          x + half * 0.5,
-          y - half * 0.56,
-          x + half * 0.64,
-          y + half * 0.14,
-        );
-        context.bezierCurveTo(
-          x + half * 0.16,
-          y + half * 0.38,
-          x - half * 0.2,
-          y + half * 0.42,
-          x - half * 0.58,
-          y + half * 0.34,
-        );
-        context.moveTo(x - half * 0.5, y + half * 0.3);
-        context.quadraticCurveTo(x - half * 0.02, y + half * 0.08, x + half * 0.48, y - half * 0.26);
-        context.stroke();
-      }
-
-      if (type === "spark") {
-        for (let index = 0; index < 8; index += 1) {
-          const angle = (index / 8) * Math.PI * 2 + time * 0.5;
-          const inner = half * 0.24;
-          const outer = half * (index % 2 === 0 ? 0.78 : 0.5);
-
-          context.beginPath();
-          context.moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * inner);
-          context.lineTo(x + Math.cos(angle) * outer, y + Math.sin(angle) * outer);
-          context.stroke();
-        }
-
-        context.beginPath();
-        context.arc(x, y, half * 0.2, 0, Math.PI * 2);
-        context.fill();
-      }
-
-      context.restore();
-    };
-
-    const drawSignalLabel = (signal, position, active, completed) => {
-      const showLabel = active > 0.32 || (width > 980 && completed > 0.98);
-      const alpha = clamp(active * 0.75 + completed * 0.16, 0, 0.82);
-
-      if (!showLabel || alpha <= 0.04) return;
-
-      const panelWidth = width < 560 ? 168 : 194;
-      const panelHeight = 64;
-      const side = position.x > width * 0.56 ? -1 : 1;
-      const panelX = clamp(position.x + side * 38 - (side < 0 ? panelWidth : 0), 14, width - panelWidth - 14);
-      const panelY = clamp(position.y - 32, 16, height - panelHeight - 18);
-
-      context.save();
-      drawRoundedRect(panelX, panelY, panelWidth, panelHeight, 8);
-      context.fillStyle = `rgba(9, 10, 13, ${0.24 + alpha * 0.44})`;
-      context.fill();
-      context.strokeStyle = `rgba(${signal.color}, ${0.18 + alpha * 0.28})`;
-      context.stroke();
-
-      context.font = "900 13px Inter, ui-sans-serif, system-ui";
-      context.textAlign = "left";
-      context.textBaseline = "top";
-      context.fillStyle = `rgba(${signal.color}, ${0.58 + alpha * 0.36})`;
-      context.fillText(signal.label, panelX + 14, panelY + 12);
-
-      context.font = "600 12px Inter, ui-sans-serif, system-ui";
-      context.fillStyle = `rgba(251, 247, 238, ${0.46 + alpha * 0.34})`;
-      context.fillText(signal.detail, panelX + 14, panelY + 34);
-      context.restore();
-    };
-
-    const drawWordReveal = () => {
-      const word = "MACHIYM";
-      const fontSize = clamp(width * 0.13, 64, 172);
-      const wordX = width * 0.5;
-      const wordY = height * (width < 700 ? 0.58 : 0.64);
-      const reveal = ease(clamp(scrollProgress * 1.18));
-
-      context.save();
-      context.font = `900 ${fontSize}px Inter, ui-sans-serif, system-ui`;
-      context.textAlign = "center";
-      context.textBaseline = "middle";
-      context.lineWidth = 1;
-      context.strokeStyle = `rgba(251, 247, 238, ${0.028 + reveal * 0.035})`;
-      context.strokeText(word, wordX, wordY);
-
-      const textWidth = context.measureText(word).width;
-      context.beginPath();
-      context.rect(wordX - textWidth / 2, wordY - fontSize * 0.6, textWidth * reveal, fontSize * 1.08);
-      context.clip();
-      context.fillStyle = `rgba(91, 231, 196, ${0.025 + reveal * 0.05})`;
-      context.fillText(word, wordX, wordY);
-      context.restore();
-    };
-
-    const drawPersonalSignal = () => {
-      const signalCount = identitySignals.length;
-      const travel = scrollProgress * (signalCount - 1);
-      const radiusX = width < 720 ? width * 0.38 : Math.min(width * 0.34, 430);
-      const radiusY = width < 720 ? height * 0.24 : Math.min(height * 0.34, 310);
-      const centerX = width < 720 ? width * 0.5 : width * 0.63;
-      const centerY = height * 0.52;
-      const positions = identitySignals.map((signal, index) => {
-        const ratio = index / Math.max(signalCount - 1, 1);
-        const angle = -Math.PI * 0.86 + ratio * Math.PI * 1.72 + scrollProgress * 0.7;
-        const breathe = Math.sin(time * 1.15 + index * 1.7) * 11;
-        const spiral = 1 + Math.sin(scrollProgress * Math.PI * 2 + index * 0.72) * 0.08;
+      const nodes = signals.map((signal, index) => {
+        const angle = -Math.PI / 2 + (index / total) * Math.PI * 2 + rotation;
+        const breathe = Math.sin(time * 0.9 + index * 1.4) * 6;
 
         return {
           ...signal,
-          x: centerX + Math.cos(angle) * radiusX * spiral,
-          y: centerY + Math.sin(angle) * radiusY * spiral + breathe,
+          x: centerX + Math.cos(angle) * radiusX,
+          y: centerY + Math.sin(angle) * radiusY + breathe,
         };
       });
 
-      context.save();
-      context.globalCompositeOperation = "screen";
-      drawWordReveal();
+      // Jemná vodiaca elipsa
+      context.beginPath();
+      context.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+      context.strokeStyle = "rgba(148, 163, 194, 0.06)";
+      context.lineWidth = 1;
+      context.stroke();
 
-      for (let index = 0; index < positions.length - 1; index += 1) {
-        const first = positions[index];
-        const second = positions[index + 1];
-        const segmentProgress = ease(clamp(travel - index));
+      // Rastúce spoje medzi odomknutými bodmi
+      for (let index = 0; index < total - 1; index += 1) {
+        const fill = clamp(revealed - (index + 1));
+        if (fill <= 0) continue;
 
-        if (segmentProgress <= 0) continue;
-
-        const endX = lerp(first.x, second.x, segmentProgress);
-        const endY = lerp(first.y, second.y, segmentProgress);
+        const first = nodes[index];
+        const second = nodes[index + 1];
+        const endX = first.x + (second.x - first.x) * fill;
+        const endY = first.y + (second.y - first.y) * fill;
         const gradient = context.createLinearGradient(first.x, first.y, second.x, second.y);
-        gradient.addColorStop(0, `rgba(${first.color}, ${0.1 + segmentProgress * 0.2})`);
-        gradient.addColorStop(1, `rgba(${second.color}, ${0.08 + segmentProgress * 0.24})`);
+        gradient.addColorStop(0, `rgba(${first.color.join(", ")}, 0.3)`);
+        gradient.addColorStop(1, `rgba(${second.color.join(", ")}, 0.3)`);
 
         context.beginPath();
         context.moveTo(first.x, first.y);
-        context.bezierCurveTo(
-          lerp(first.x, centerX, 0.22),
-          lerp(first.y, centerY, 0.22),
-          lerp(second.x, centerX, 0.22),
-          lerp(second.y, centerY, 0.22),
-          endX,
-          endY,
-        );
+        context.lineTo(endX, endY);
         context.strokeStyle = gradient;
-        context.lineWidth = 1.8 + Math.abs(scrollVelocity) * 0.9;
+        context.lineWidth = 1.6 + Math.abs(scrollVelocity);
         context.stroke();
       }
 
-      positions.forEach((position, index) => {
-        const completed = ease(clamp(travel - index + 0.42));
-        const active = ease(1 - clamp(Math.abs(travel - index) / 0.9));
-        const nodeAlpha = 0.08 + completed * 0.22 + active * 0.32;
-        const radius = 8 + active * 13 + completed * 3;
+      // Body – postupne pribúdajú
+      nodes.forEach((node, index) => {
+        const reveal = clamp(revealed - index);
+        const [r, g, b] = node.color;
 
         context.beginPath();
-        context.arc(position.x, position.y, radius * 2.4, 0, Math.PI * 2);
-        context.fillStyle = `rgba(${position.color}, ${0.018 + active * 0.07})`;
+        context.arc(node.x, node.y, 14 + reveal * 12, 0, Math.PI * 2);
+        context.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.02 + reveal * 0.1})`;
         context.fill();
 
         context.beginPath();
-        context.arc(position.x, position.y, radius, 0, Math.PI * 2);
-        context.fillStyle = `rgba(9, 10, 13, ${0.2 + completed * 0.24})`;
-        context.fill();
-        context.strokeStyle = `rgba(${position.color}, ${nodeAlpha})`;
-        context.lineWidth = 1.4;
+        context.arc(node.x, node.y, 6 + reveal * 4, 0, Math.PI * 2);
+        context.strokeStyle = `rgba(${r}, ${g}, ${b}, ${0.1 + reveal * 0.4})`;
+        context.lineWidth = 1.2;
         context.stroke();
 
-        drawSignalIcon(position.type, position.x, position.y, 30 + active * 14, position.color, nodeAlpha + 0.22);
-        drawSignalLabel(position, position, active, completed);
+        context.beginPath();
+        context.arc(node.x, node.y, 2.4 + reveal * 3.2, 0, Math.PI * 2);
+        context.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.12 + reveal * 0.72})`;
+        context.fill();
       });
 
-      const currentIndex = clamp(Math.round(travel), 0, signalCount - 1);
-      const current = positions[currentIndex];
-      const next = positions[Math.min(currentIndex + 1, signalCount - 1)] || current;
-      const cometProgress = ease(clamp(travel - Math.floor(travel)));
-      const cometX = lerp(current.x, next.x, cometProgress);
-      const cometY = lerp(current.y, next.y, cometProgress);
+      // Popisok práve pribúdajúceho bodu
+      const activeIndex = clamp(Math.floor(revealed - 0.0001), 0, total - 1);
+      const active = nodes[activeIndex];
+      const activeReveal = clamp(revealed - activeIndex);
+
+      if (active && activeReveal > 0.12) {
+        const [r, g, b] = active.color;
+        const side = active.x > width * 0.5 ? -1 : 1;
+        context.font = "700 13px Inter, ui-sans-serif, system-ui";
+        context.textAlign = side < 0 ? "right" : "left";
+        context.textBaseline = "middle";
+        context.fillStyle = `rgba(${r}, ${g}, ${b}, ${activeReveal * 0.5})`;
+        context.fillText(active.label, active.x + side * 18, active.y);
+      }
+
+      // Kométa obiehajúca podľa scrollu
+      const cometAngle = -Math.PI / 2 + clamp(scrollProgress) * Math.PI * 2 + rotation;
+      const cometX = centerX + Math.cos(cometAngle) * radiusX;
+      const cometY = centerY + Math.sin(cometAngle) * radiusY;
 
       context.beginPath();
-      context.arc(cometX, cometY, 4 + Math.abs(scrollVelocity) * 5, 0, Math.PI * 2);
-      context.fillStyle = `rgba(251, 247, 238, ${0.28 + Math.abs(scrollVelocity) * 0.24})`;
+      context.arc(cometX, cometY, 3.4 + Math.abs(scrollVelocity) * 4, 0, Math.PI * 2);
+      context.fillStyle = `rgba(238, 241, 248, ${0.4 + Math.abs(scrollVelocity) * 0.3})`;
       context.fill();
-      context.restore();
     };
 
-    const draw = () => {
-      time += 0.012 + Math.abs(scrollVelocity) * 0.008;
-      scrollProgress += (targetScrollProgress - scrollProgress) * 0.08;
-      scrollVelocity *= 0.92;
-
+    const drawFrame = () => {
       context.clearRect(0, 0, width, height);
-      drawGrid();
-      drawRings();
-      drawPersonalSignal();
+      context.globalCompositeOperation = "screen";
 
-      for (const point of points) {
-        const drift = Math.sin(time + point.phase + scrollProgress * Math.PI * 4);
-        point.x += point.vx + drift * 0.22 + scrollVelocity * 2.4;
-        point.y += point.vy + Math.cos(time * 0.8 + point.phase) * 0.18 + scrollProgress * 0.12;
+      for (const orb of orbs) {
+        orb.x += Math.sin(time * 0.3 + orb.drift) * 0.2;
+        orb.y += -scrollVelocity * orb.depth * 26 + Math.cos(time * 0.24 + orb.drift) * 0.16;
 
-        if (point.x < 0 || point.x > width) point.vx *= -1;
-        if (point.y < 0 || point.y > height) point.vy *= -1;
-        if (point.x < -12) point.x = width + 12;
-        if (point.x > width + 12) point.x = -12;
-        if (point.y < -12) point.y = height + 12;
-        if (point.y > height + 12) point.y = -12;
+        if (orb.y < -orb.radius) orb.y = height + orb.radius;
+        if (orb.y > height + orb.radius) orb.y = -orb.radius;
 
+        const [r, g, b] = orb.color;
+        const gradient = context.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, orb.radius);
+        gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${0.08 + Math.abs(scrollVelocity) * 0.05})`);
+        gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+        context.fillStyle = gradient;
         context.beginPath();
-        context.arc(point.x, point.y, point.r + Math.abs(scrollVelocity) * 1.2, 0, Math.PI * 2);
-        context.fillStyle = `rgba(91, 231, 196, ${0.46 + Math.abs(scrollVelocity) * 0.28})`;
+        context.arc(orb.x, orb.y, orb.radius, 0, Math.PI * 2);
         context.fill();
       }
 
-      for (let a = 0; a < points.length; a += 1) {
-        for (let b = a + 1; b < points.length; b += 1) {
-          const first = points[a];
-          const second = points[b];
+      for (const point of particles) {
+        point.x += point.vx + Math.sin(time + point.phase) * 0.12;
+        point.y += point.vy - scrollVelocity * point.depth * 7;
+
+        if (point.x < -20) point.x = width + 20;
+        if (point.x > width + 20) point.x = -20;
+        if (point.y < -20) point.y = height + 20;
+        if (point.y > height + 20) point.y = -20;
+
+        const [r, g, b] = point.color;
+        context.beginPath();
+        context.arc(point.x, point.y, point.r + Math.abs(scrollVelocity), 0, Math.PI * 2);
+        context.fillStyle = `rgba(${r}, ${g}, ${b}, 0.5)`;
+        context.fill();
+      }
+
+      const linkDistance = 132;
+
+      for (let a = 0; a < particles.length; a += 1) {
+        for (let b = a + 1; b < particles.length; b += 1) {
+          const first = particles[a];
+          const second = particles[b];
           const distance = Math.hypot(first.x - second.x, first.y - second.y);
 
-          if (distance < 132) {
+          if (distance < linkDistance) {
+            const alpha = (1 - distance / linkDistance) * (0.14 + Math.abs(scrollVelocity) * 0.12);
+            const [r, g, b] = first.color;
             context.beginPath();
             context.moveTo(first.x, first.y);
             context.lineTo(second.x, second.y);
-            context.strokeStyle = `rgba(255, 184, 107, ${0.2 - distance / 860 + Math.abs(scrollVelocity) * 0.08})`;
+            context.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
             context.lineWidth = 1;
             context.stroke();
           }
         }
       }
 
-      for (const stream of streams) {
-        stream.y += stream.speed + scrollProgress * 2.2 + Math.abs(scrollVelocity) * 12;
-        stream.x += Math.sin(time * 1.4 + stream.y * 0.01) * 0.8;
+      drawConstellation();
 
-        if (stream.y - stream.length > height + 80) {
-          stream.y = -stream.length - Math.random() * height * 0.5;
-          stream.x = Math.random() * width;
-        }
+      context.globalCompositeOperation = "source-over";
+    };
 
-        const gradient = context.createLinearGradient(stream.x, stream.y - stream.length, stream.x, stream.y);
-        gradient.addColorStop(0, "rgba(91, 231, 196, 0)");
-        gradient.addColorStop(0.45, `rgba(91, 231, 196, ${stream.alpha})`);
-        gradient.addColorStop(1, `rgba(255, 184, 107, ${stream.alpha + 0.14})`);
+    const draw = () => {
+      time += 0.008 + Math.abs(scrollVelocity) * 0.01;
+      scrollProgress += (targetScrollProgress - scrollProgress) * 0.08;
+      scrollVelocity *= 0.9;
 
-        context.beginPath();
-        context.moveTo(stream.x, stream.y - stream.length);
-        context.lineTo(stream.x + scrollVelocity * 48, stream.y);
-        context.strokeStyle = gradient;
-        context.lineWidth = 1.4;
-        context.stroke();
-      }
-
-      const scanY = (height * ((time * 0.12 + scrollProgress * 1.8) % 1));
-      const scanGradient = context.createLinearGradient(0, scanY - 34, 0, scanY + 34);
-      scanGradient.addColorStop(0, "rgba(255, 184, 107, 0)");
-      scanGradient.addColorStop(0.5, `rgba(91, 231, 196, ${0.08 + Math.abs(scrollVelocity) * 0.12})`);
-      scanGradient.addColorStop(1, "rgba(255, 111, 97, 0)");
-      context.fillStyle = scanGradient;
-      context.fillRect(0, scanY - 34, width, 68);
-
+      drawFrame();
       animationId = window.requestAnimationFrame(draw);
     };
 
     const start = () => {
-      if (reduceMotion.matches) return;
       resize();
+
+      if (reduceMotion.matches) {
+        drawFrame();
+        return;
+      }
+
       draw();
     };
 
     const handleMotionChange = () => {
       window.cancelAnimationFrame(animationId);
-      context.clearRect(0, 0, width, height);
       start();
     };
 
@@ -802,7 +693,7 @@ function TechCanvas() {
     };
   }, []);
 
-  return <canvas className="tech-canvas" ref={canvasRef} aria-hidden="true" />;
+  return <canvas className="scroll-bg" ref={canvasRef} aria-hidden="true" />;
 }
 
 function Header() {
@@ -854,24 +745,79 @@ function SectionHeading({ eyebrow, title, id }) {
 }
 
 export default function App() {
+  const [cheatOn, setCheatOn] = useState(false);
+  const [toast, setToast] = useState(null);
+  const toastTimer = useRef(null);
+  const firstCheatRender = useRef(true);
+
+  const showToast = useCallback((text) => {
+    setToast(text);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 4200);
+  }, []);
+
+  const handleKonami = useCallback(() => setCheatOn((on) => !on), []);
+  useKonamiCode(handleKonami);
+
+  useEffect(() => {
+    document.body.classList.toggle("cheat-mode", cheatOn);
+
+    if (firstCheatRender.current) {
+      firstCheatRender.current = false;
+      return undefined;
+    }
+
+    showToast(
+      cheatOn
+        ? "🎮 Cheat mód ON — ↑↑↓↓←→←→ B A · 30 životov odomknutých"
+        : "Cheat mód OFF — späť do reality.",
+    );
+
+    return () => document.body.classList.remove("cheat-mode");
+  }, [cheatOn, showToast]);
+
+  useEffect(() => {
+    console.log(
+      "%cMachiYm %c// programátor",
+      "color:#5be7c4;font-size:22px;font-weight:900;",
+      "color:#ffb86b;font-size:14px;font-weight:700;",
+    );
+    console.log(
+      "%cPozeráš do konzoly? 👀 Skús na stránke Konami kód:  ↑ ↑ ↓ ↓ ← → ← → B A",
+      "color:#b9b4a8;font-size:13px;",
+    );
+  }, []);
+
   return (
     <>
-      <TechCanvas />
+      <ScrollBackground />
       <Header />
+
+      {toast ? (
+        <div className="toast" role="status" aria-live="polite">
+          {toast}
+        </div>
+      ) : null}
+
+      {cheatOn ? (
+        <div className="cheat-badge" aria-hidden="true">
+          🎮 CHEAT MÓD
+        </div>
+      ) : null}
 
       <main id="top">
         <section className="hero" aria-labelledby="hero-title">
           <div className="hero-content">
-            <p className="eyebrow">Študent informatiky / učiteľ / vibe coder</p>
+            <p className="eyebrow">Študent informatiky / programátor</p>
             <h1 id="hero-title">MachiYm</h1>
             <p className="hero-text">
-              Tvorím weby, prototypy a učím informatiku tak, aby technológie mali
-              rytmus, jasný smer a trochu osobnosti.
+              Tvorím weby, prototypy a delím sa o to, čo viem, tak, aby technológie
+              mali rytmus, jasný smer a trochu osobnosti.
             </p>
 
             <div className="hero-actions" aria-label="Hlavné odkazy">
-              <a className="button primary" href="#vibe-coder">
-                Čo je môj vibe
+              <a className="button primary" href="#proces">
+                Ako pracujem
               </a>
               <a className="button secondary" href="#kontakt">
                 Kontakt
@@ -885,8 +831,8 @@ export default function App() {
             </div>
             <div className="signal-card">
               <p className="signal-label">Aktuálny mód</p>
-              <strong>Vibe coder</strong>
-              <span>AI + frontend + vlastný cit pre atmosféru stránky.</span>
+              <strong>Web &amp; AI</strong>
+              <span>Frontend, AI nástroje a vlastný cit pre atmosféru stránky.</span>
             </div>
           </div>
         </section>
@@ -904,9 +850,8 @@ export default function App() {
           <SectionHeading eyebrow="O mne" title="Kód beriem ako nástroj na tvorbu, nie ako samoúčel." />
           <div className="split">
             <p>
-              Som MachiYm, študent informatiky a učiteľ informatiky. Zaujímam sa
-              o webové technológie, programovanie, AI nástroje a praktické digitálne
-              riešenia.
+              Som MachiYm, študent informatiky a programátor. Zaujímam sa o webové
+              technológie, programovanie, AI nástroje a praktické digitálne riešenia.
             </p>
             <p>
               Pri tvorbe hľadám rovnováhu medzi funkčnosťou a pocitom. Stránka má
@@ -915,17 +860,17 @@ export default function App() {
           </div>
         </section>
 
-        <section className="section vibe-section" id="vibe-coder">
-          <SectionHeading eyebrow="Vibe coder" title="Nápady premieňam na weby, ktoré majú štýl aj funkciu." />
+        <section className="section vibe-section" id="proces">
+          <SectionHeading eyebrow="Ako pracujem" title="Nápady premieňam na weby, ktoré majú štýl aj funkciu." />
           <div className="vibe-layout">
             <div className="vibe-copy">
               <p>
-                Byť vibe coder pre mňa znamená spojiť nápad, AI asistenciu, cit pre
-                dizajn a praktické programovanie. Nejde len o prompt, ale o schopnosť
-                rozpoznať, čo funguje, čo je navyše a čo potrebuje doladiť.
+                Spájam nápad, AI asistenciu, cit pre dizajn a praktické programovanie.
+                Nejde len o prompt, ale o schopnosť rozpoznať, čo funguje, čo je navyše
+                a čo potrebuje doladiť.
               </p>
             </div>
-            <div className="vibe-flow" aria-label="Proces vibe codingu">
+            <div className="vibe-flow" aria-label="Môj pracovný proces">
               {vibeFlow.map((item) => (
                 <article key={item.label}>
                   <span>{item.label}</span>
@@ -964,7 +909,7 @@ export default function App() {
         </section>
 
         <section className="section learning-band" id="vyucba">
-          <SectionHeading eyebrow="Výučba" title="Učenie má byť jasné, praktické a trochu hravé." />
+          <SectionHeading eyebrow="Mentoring" title="O to, čo viem, sa delím jasne, prakticky a trochu hravo." />
           <div className="focus-list">
             {lessons.map(([number, title, text]) => (
               <article key={number}>
@@ -1002,13 +947,16 @@ export default function App() {
               </article>
             ))}
           </div>
-          <GamingMiniGame />
+          <div className="mini-game-stack">
+            <GamingMiniGame />
+            <MemoryGame />
+          </div>
         </section>
 
         <section className="contact-section" id="kontakt" aria-labelledby="contact-title">
           <div>
             <p className="eyebrow">Kontakt</p>
-            <h2 id="contact-title">Máš nápad na web, prototyp alebo výučbu?</h2>
+            <h2 id="contact-title">Máš nápad na web, prototyp alebo mentoring?</h2>
             <p>
               Ozvi sa, keď chceš niečo rozbehnúť, zlepšiť alebo len premeniť dobrý
               nápad na prvú použiteľnú verziu.
@@ -1030,7 +978,7 @@ export default function App() {
       </main>
 
       <footer className="site-footer">
-        <p>© {new Date().getFullYear()} MachiYm. Vibe coder, študent informatiky a učiteľ, ktorý rád mení nápady na web.</p>
+        <p>© {new Date().getFullYear()} MachiYm. Študent informatiky a programátor, ktorý rád mení nápady na web.</p>
       </footer>
     </>
   );
